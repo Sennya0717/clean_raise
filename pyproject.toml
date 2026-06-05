@@ -4,7 +4,7 @@ build-backend = 'hatchling.build'
 
 [project]
 name = 'clean_raise'
-version = '1.0.1'
+version = '1.0.2'
 description = 'A simple, zero-dependency utility to raise exceptions as if they originated directly from the invoking method'
 readme = 'README.md'
 requires-python = '>=3.9'
