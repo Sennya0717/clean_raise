@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# For Pythono 3.13 ~ Python 3.15
+# For Python 3.13 ~ Python 3.15
 
 '''
 A simple, zero-dependency utility to raise exceptions as if they originated directly from the invoking method for
