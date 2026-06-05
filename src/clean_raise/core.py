@@ -28,7 +28,7 @@ class SennyaCustomError(Exception): pass
 def _silent_excepthook(exctype, value, traceback):
     global is_silenced
     if is_silenced:
-        pass
+        is_silenced = False
     else:
         sys.__excepthook__(exctype, value, traceback)
     
