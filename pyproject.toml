@@ -1,0 +1,31 @@
+[build-system]
+requires = ['hatchling']
+build-backend = 'hatchling.build'
+
+[project]
+name = 'clean_raise'
+version = '1.0.0'
+description = 'A simple, zero-dependency utility to raise exceptions as if they originated directly from the invoking method'
+readme = 'README.md'
+requires-python = '>=3.9'
+license = { text = 'Apache-2.0' }
+license-files = ['LICENSE']
+authors = [
+    { name = 'Sennya', email = 'krkk970717@gmail.com' }
+]
+classifiers = [
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: 3.13',
+    'Programming Language :: Python :: 3.14',
+    'Programming Language :: Python :: 3.15',
+    'License :: OSI Approved :: Apache Software License',
+    'Operating System :: OS Independent',
+]
+
+[project.urls]
+Homepage = 'https://github.com/Sennya0717/raise-tool'
+Issues = 'https://github.com/Sennya0717/raise-tool/issues'
