@@ -17,7 +17,8 @@
 '''
 A simple, zero-dependency utility to raise exceptions as if they originated directly from the invoking method for
 '''
-import sys, opcode
+import sys
+import opcode
 from types import TracebackType
 from typing import NoReturn, Any
 
