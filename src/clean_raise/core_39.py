@@ -17,7 +17,9 @@
 '''
 A simple, zero-dependency utility to raise exceptions as if they originated directly from the invoking method for
 '''
-import sys, opcode, traceback as tb
+import sys
+import opcode
+import traceback as tb
 from types import TracebackType
 from typing import NoReturn, Any, Union
 
@@ -57,7 +59,7 @@ def _is_in_try():
         frame = frame.f_back
     return False
 
-def clean_raise(exception: Any | None  = None, lasti_move: int | None = 0, /) -> NoReturn:
+def clean_raise(exception: Union[Any, None]  = None, lasti_move: Union[int, None] = 0, /) -> NoReturn:
     global original_excepthook
     
     if exception is None:
@@ -105,6 +107,8 @@ def clean_raise(exception: Any | None  = None, lasti_move: int | None = 0, /) ->
     original_excepthook = sys.excepthook
     
     if not _is_in_try():
-        sys.excepthook(type(exception), exception, traceback)
-        pass
+        if sys.excepthook == sys.__excepthook__:
+            tb.print_exception(type(exception), exception, traceback)
+        else:
+            sys.excepthook(type(exception), exception, traceback)
     _silent_raise(exception.with_traceback(traceback))
