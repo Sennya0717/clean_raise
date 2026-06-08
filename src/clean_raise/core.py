@@ -14,33 +14,49 @@
 
 # For Python 3.13 ~ Python 3.15
 
-'''
-A simple, zero-dependency utility to raise exceptions as if they originated directly from the invoking method for
-'''
-import sys, opcode
+import opcode
+import os
+import sys
+import threading, _thread
 from types import TracebackType
-from typing import NoReturn, Any
+from typing import Any, NoReturn
+
+base_path = sys.base_prefix.replace('\\', '/')
+PURELIB_PATH = (
+    f'{base_path}/Lib/',
+    f'{base_path}/lib/python{sys.version_info.major}.{sys.version_info.minor}'
+)
+SITE_PACKAGES = ('site-packages', 'dist-packages')
+
+def _silent_thread_excepthook(hook):
+    threading.excepthook = original_threading_excepthook
+
 
 def _silent_excepthook(exctype, value, traceback):
     pass
-    
+
+
 def _silent_raise(exception) -> NoReturn:
-    if not _is_in_try():
+    if not in_sub_thread and not in_try:
         sys.excepthook = _silent_excepthook
+    elif in_sub_thread:
+        threading.excepthook = _silent_thread_excepthook
     raise exception
+
 
 def _is_in_try():
     try:
         frame = sys._getframe(2)
     except ValueError:
         return False
-    
+
     while frame is not None:
         code_obj = frame.f_code
         lasti = frame.f_lasti
         table = code_obj.co_exceptiontable
-        
+
         idx = 0
+
         def next_entry(exctable):
             nonlocal idx
             val = 0
@@ -51,38 +67,45 @@ def _is_in_try():
                 if not (byte & 64):
                     break
             return val
-        
+
         exctable = []
         while idx < len(table):
-            start = next_entry(table) *2
-            length = next_entry(table) *2
+            start = next_entry(table) * 2
+            length = next_entry(table) * 2
             end = start + length
-            target = next_entry(table) *2
+            target = next_entry(table) * 2
             info = next_entry(table)
             depth = info >> 1
-            
-            exctable.append((start, end, target, depth)) 
-        
-        op_slice = frame.f_code.co_code[::2]
-        
+
+            exctable.append((start, end, target, depth))
+
         for start, end, target, _ in exctable:
-            current_op = op_slice[target // 2]
+            filepath = frame.f_code.co_filename.replace('\\','/')
+            if (
+                any(filepath.startswith(pure_lib) for pure_lib in PURELIB_PATH)
+                and not any(site_package in filepath for site_package in SITE_PACKAGES)
+            ):
+                continue
             if start <= lasti < end:
-                if current_op not in (opcode.opmap['CALL_INTRINSIC_1'], opcode.opmap['CALL_INTRINSIC_2']):
                     return True
-                else:
-                    return False
         frame = frame.f_back
     return False
 
 
-def clean_raise(exception: Any | None  = None, lasti_move: int | None = 0, /) -> NoReturn:
-    global original_excepthook
-    
+def _is_in_sub_thread():
+    return threading.current_thread() is not threading.main_thread()
+
+
+def clean_raise(exception: Any | None = None, lasti_move: int | None = 0, /) -> NoReturn:
+    global original_excepthook, original_threading_excepthook, in_try, in_sub_thread
+
+    in_sub_thread = _is_in_sub_thread()
+    in_try = _is_in_try()
+
     if exception is None:
         exception = RuntimeError('No active exception to reraise')
     elif not isinstance(exception, BaseException):
-            exception = RuntimeError(exception)
+        exception = RuntimeError(exception)
     exception.__traceback__ = None
     try:
         frame = sys._getframe(2)
@@ -90,12 +113,16 @@ def clean_raise(exception: Any | None  = None, lasti_move: int | None = 0, /) ->
         frame = sys._getframe(1)
         exception = RuntimeError('clean_raise.clean_raise() cannot be called from the global scope')
     frames = []
-    
-    while frame is not None:        
+
+    while frame is not None:
         frames.append(frame)
         frame = frame.f_back
     traceback = None
     for i, f in enumerate(frames):
+        
+        if in_sub_thread and f == frames[-1]:
+            break
+        
         co_code = f.f_code.co_code
         lasti = f.f_lasti
         if i == 0:
@@ -113,16 +140,19 @@ def clean_raise(exception: Any | None  = None, lasti_move: int | None = 0, /) ->
                     continue
                 
                 step -= 1
-        
+                
         traceback = TracebackType(
-            tb_next = traceback,
-            tb_frame = f,
-            tb_lasti = lasti,
-            tb_lineno = f.f_lineno
+            tb_next=traceback,
+            tb_frame=f,
+            tb_lasti=lasti,
+            tb_lineno=f.f_lineno
         )
 
     original_excepthook = sys.excepthook
+    original_threading_excepthook = threading.excepthook
     
-    if not _is_in_try():
+    if not in_sub_thread and not in_try:
         sys.excepthook(type(exception), exception, traceback)
+    elif not in_try:
+        threading.excepthook(_thread._ExceptHookArgs((exception, exception, traceback, threading.current_thread())))
     _silent_raise(exception.with_traceback(traceback))
