@@ -77,9 +77,3 @@ Because **clean_raise** works by traversing and synthesizing frames backward fro
 ### 2. Traceback Chain Pollution on Caught Exception Objects
 
 Due to Python's native behavior, any `raise` statement unconditionally appends the current execution frame to the exception's traceback chain. When `clean_raise()` is caught within a `try-except` block, it achieves this by triggering a literal `raise` alongside a temporarily silenced `excepthook`. Consequently, the resulting exception object will inevitably contain a frame from `clean_raise` inside its `.__traceback__.tb_next` chain, causing minor traceback pollution.
-
-### 3. Lack of Native Threading Support
-
-The current implementation is optimized for the main execution thread and does not yet safely adapt to multi-threaded environments. Because unhandled exceptions within spawning threads are intercepted by `threading.excepthook` rather than the standard `sys.excepthook`, invoking `clean_raise()` inside a separate thread may lead to unexpected tracebacks. 
-
-**Full support for multi-threaded contexts is planned for a future release.*
