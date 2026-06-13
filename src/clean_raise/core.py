@@ -14,6 +14,7 @@
 
 # For Python 3.13 ~ Python 3.15
 
+import asyncio
 import opcode
 import os
 import sys
@@ -28,19 +29,26 @@ PURELIB_PATH = (
 )
 SITE_PACKAGES = ('site-packages', 'dist-packages')
 
+def _silent_async_exception_handler(context):
+    loop.set_exception_handler(original_async_exception_handler)
+
+
 def _silent_thread_excepthook(hook):
     threading.excepthook = original_threading_excepthook
 
 
-def _silent_excepthook(exctype, value, traceback):
+def _silent_excepthook(excolor_type, value, traceback):
     pass
 
 
 def _silent_raise(exception) -> NoReturn:
-    if not in_sub_thread and not in_try:
-        sys.excepthook = _silent_excepthook
-    elif in_sub_thread:
-        threading.excepthook = _silent_thread_excepthook
+    if not in_try:
+        if not in_sub_thread or (not in_async and original_async_exception_handler is None):
+            sys.excepthook = _silent_excepthook
+        elif in_sub_thread:
+            threading.excepthook = _silent_thread_excepthook
+        elif in_async and original_async_exception_handler is not None:
+            loop.set_exception_handler(_silent_async_exception_handler)
     raise exception
 
 
@@ -91,16 +99,23 @@ def _is_in_try():
         frame = frame.f_back
     return False
 
+def _is_in_async():
+    try:
+        loop = asyncio.get_running_loop()
+        return True, loop
+    except:
+        return False, None
 
 def _is_in_sub_thread():
     return threading.current_thread() is not threading.main_thread()
 
 
 def clean_raise(exception: Any | None = None, lasti_move: int | None = 0, /) -> NoReturn:
-    global original_excepthook, original_threading_excepthook, in_try, in_sub_thread
+    global original_excepthook, original_threading_excepthook, original_async_exception_handler, in_try, in_sub_thread, in_async, loop
 
     in_sub_thread = _is_in_sub_thread()
-    in_try = _is_in_try()
+    loop, in_try = _is_in_try()
+    in_async, loop = _is_in_async()
 
     if exception is None:
         exception = RuntimeError('No active exception to reraise')
@@ -150,9 +165,17 @@ def clean_raise(exception: Any | None = None, lasti_move: int | None = 0, /) -> 
 
     original_excepthook = sys.excepthook
     original_threading_excepthook = threading.excepthook
+    original_async_exception_handler = loop.get_exception_handler()
     
-    if not in_sub_thread and not in_try:
-        sys.excepthook(type(exception), exception, traceback)
-    elif not in_try:
-        threading.excepthook(_thread._ExceptHookArgs((exception, exception, traceback, threading.current_thread())))
+    if not in_try:
+        if not in_sub_thread or (not in_async and original_async_exception_handler is None):
+            sys.excepthook(type(exception), exception.with_traceback(traceback), traceback)
+        elif in_sub_thread:
+            threading.excepthook(_thread._ExceptHookArgs((type(exception), exception.with_traceback(traceback), traceback, threading.current_thread())))
+        elif in_async and original_async_exception_handler is not None:
+            loop.call_exception_handler({
+                'message': str(exception),
+                'exception': exception,
+                'future': asyncio.current_task(loop)
+            })
     _silent_raise(exception.with_traceback(traceback))
